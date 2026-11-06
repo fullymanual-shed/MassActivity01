@@ -1,0 +1,183 @@
+
+name: MassActivity CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: massactivity-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate plugin
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Check Ruby syntax
+        run: |
+          find . -type f -name '*.rb' -not -path './.git/*' \
+            -print0 | xargs -0 -r -n1 ruby -c
+
+  build-and-deploy:
+    name: Build and deploy
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+
+      - name: Checkout Discourse Docker
+        uses: actions/checkout@v4
+        with:
+          repository: discourse/discourse_docker
+          path: discourse_docker
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Discourse image
+        working-directory: discourse_docker
+        run: |
+          cat > containers/massactivity.yml <<'YAML'
+          templates:
+            - "templates/postgres.template.yml"
+            - "templates/redis.template.yml"
+            - "templates/web.template.yml"
+            - "templates/web.ratelimited.template.yml"
+
+          expose:
+            - "80:80"
+            - "443:443"
+
+          params:
+            db_default_text_search_config: "pg_catalog.english"
+
+          env:
+            LC_ALL: en_US.UTF-8
+            LANG: en_US.UTF-8
+            LANGUAGE: en_US.UTF-8
+            DISCOURSE_HOSTNAME: "massactivity.site"
+            DISCOURSE_DEVELOPER_EMAILS: "aleotu@gmail.com"
+            DISCOURSE_SKIP_EMAIL_SETUP: "1"
+
+          volumes:
+            - volume:
+                host: /var/discourse/shared/standalone
+                guest: /shared
+            - volume:
+                host: /var/discourse/shared/standalone/log/var-log
+                guest: /var/log
+
+          hooks:
+            after_code:
+              - exec:
+                  cd: $home/plugins
+                  cmd:
+                    - git clone https://github.com/discourse/docker_manager.git
+                    - git clone https://github.com/merefield/discourse-locations.git
+                    - git clone https://github.com/fullymanual-shed/MassActivity01.git massactivity01
+                    - git -C massactivity01 checkout ${{ github.sha }}
+
+          run:
+            - exec: echo "Beginning of custom commands"
+            - exec: echo "End of custom commands"
+          YAML
+
+          ./launcher bootstrap massactivity
+
+          docker tag local_discourse/massactivity:latest \
+            alexgorushkin/massactivity:${GITHUB_SHA}
+
+          docker tag local_discourse/massactivity:latest \
+            alexgorushkin/massactivity:latest
+
+          docker push alexgorushkin/massactivity:${GITHUB_SHA}
+          docker push alexgorushkin/massactivity:latest
+
+      - name: Deploy to DigitalOcean
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DO_HOST" >> ~/.ssh/known_hosts
+
+          ssh root@"$DO_HOST" "IMAGE_TAG='$GITHUB_SHA' bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+
+          IMAGE="alexgorushkin/massactivity:${IMAGE_TAG}"
+          BACKUP="massactivity-previous"
+
+          docker pull "$IMAGE"
+
+          # Remove the previous backup, if one exists.
+          docker rm -f "$BACKUP" >/dev/null 2>&1 || true
+
+          # Preserve the currently running container for rollback.
+          docker stop -t 600 massactivity
+          docker update --restart=no massactivity
+          docker rename massactivity "$BACKUP"
+
+          rollback() {
+            status=$?
+            trap - ERR
+            echo "Deployment failed. Restoring previous container..."
+
+            docker rm -f massactivity >/dev/null 2>&1 || true
+
+            if docker inspect "$BACKUP" >/dev/null 2>&1; then
+              docker rename "$BACKUP" massactivity
+              docker update --restart=always massactivity
+              docker start massactivity
+            fi
+
+            exit "$status"
+          }
+
+          trap rollback ERR
+
+          docker run -d \
+            --name massactivity \
+            --restart always \
+            --entrypoint /sbin/boot \
+            --env-file /root/massactivity.env \
+            -e DISCOURSE_HOSTNAME=massactivity.site \
+            -p 80:80 \
+            -p 443:443 \
+            -v /var/discourse/shared/standalone:/shared \
+            -v /var/discourse/shared/standalone/log/var-log:/var/log \
+            "$IMAGE"
+
+          # Wait for the container to remain running.
+          for i in $(seq 1 30); do
+            running=$(docker inspect -f '{{.State.Running}}' massactivity)
+            [ "$running" = "true" ] && break
+            sleep 2
+          done
+
+          test "$running" = "true"
+
+          trap - ERR
+          echo "Deployment successful: $IMAGE"
+          echo "Previous container retained as $BACKUP"
+          REMOTE
