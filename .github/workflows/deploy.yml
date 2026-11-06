@@ -94,7 +94,7 @@ jobs:
                     - git clone https://github.com/discourse/docker_manager.git
                     - git clone https://github.com/merefield/discourse-locations.git
                     - git clone https://github.com/fullymanual-shed/MassActivity01.git massactivity01
-                    - git -C massactivity01 checkout ${{ github.sha }}
+                    - git -C mass-activity-01 checkout ${{ github.sha }}
 
           run:
             - exec: echo "Beginning of custom commands"
@@ -126,35 +126,43 @@ jobs:
           set -Eeuo pipefail
 
           IMAGE="alexgorushkin/massactivity:${IMAGE_TAG}"
-          BACKUP="massactivity-previous"
+
+          # Save the exact currently running image for rollback.
+          OLD_IMAGE_ID=$(docker inspect -f '{{.Image}}' massactivity)
 
           docker pull "$IMAGE"
-
-          # Remove the previous backup, if one exists.
-          docker rm -f "$BACKUP" >/dev/null 2>&1 || true
-
-          # Preserve the currently running container for rollback.
-          docker stop -t 600 massactivity
-          docker update --restart=no massactivity
-          docker rename massactivity "$BACKUP"
 
           rollback() {
             status=$?
             trap - ERR
-            echo "Deployment failed. Restoring previous container..."
+
+            echo "Deployment failed. Rolling back..."
 
             docker rm -f massactivity >/dev/null 2>&1 || true
 
-            if docker inspect "$BACKUP" >/dev/null 2>&1; then
-              docker rename "$BACKUP" massactivity
-              docker update --restart=always massactivity
-              docker start massactivity
-            fi
+            docker run -d \
+              --name massactivity \
+              --restart always \
+              --entrypoint /sbin/boot \
+              --env-file /root/massactivity.env \
+              -e DISCOURSE_HOSTNAME=massactivity.site \
+              -p 80:80 \
+              -p 443:443 \
+              -v /var/discourse/shared/standalone:/shared \
+              -v /var/discourse/shared/standalone/log/var-log:/var/log \
+              "$OLD_IMAGE_ID" || {
+                echo "CRITICAL: rollback failed!"
+                exit 1
+              }
 
+            echo "Previous image restored."
             exit "$status"
           }
 
           trap rollback ERR
+
+          docker stop -t 600 massactivity
+          docker rm massactivity
 
           docker run -d \
             --name massactivity \
@@ -168,8 +176,10 @@ jobs:
             -v /var/discourse/shared/standalone/log/var-log:/var/log \
             "$IMAGE"
 
-          # Wait for the container to remain running.
-          for i in $(seq 1 30); do
+          # Wait up to 120 seconds for the container to start.
+          running=false
+
+          for i in $(seq 1 60); do
             running=$(docker inspect -f '{{.State.Running}}' massactivity)
             [ "$running" = "true" ] && break
             sleep 2
@@ -177,7 +187,27 @@ jobs:
 
           test "$running" = "true"
 
+          # Wait for the HTTP endpoint to respond.
+          ready=false
+
+          for i in $(seq 1 60); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              --max-time 5 \
+              -H 'Host: massactivity.site' \
+              http://127.0.0.1/ || true)
+
+            if [[ "$code" =~ ^[23][0-9][0-9]$ ]]; then
+              ready=true
+              break
+            fi
+
+            sleep 2
+          done
+
+          test "$ready" = "true"
+
           trap - ERR
+
           echo "Deployment successful: $IMAGE"
-          echo "Previous container retained as $BACKUP"
+          echo "Previous image retained locally for rollback."
           REMOTE
