@@ -1,0 +1,73 @@
+.mass-activity-location-map-section {
+  margin-top: 1em;
+
+  .mass-activity-location-search {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1em;
+
+    .input-location {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: none;
+    }
+  }
+
+  .mass-activity-location-map {
+    height: min(45vh, 400px);
+    min-height: 260px;
+    position: relative;
+
+    .leaflet-container {
+      width: 100%;
+      height: 100%;
+    }
+  }
+}
+
+#locations-map:not(.expanded) {
+  isolation: isolate;
+  z-index: 0 !important;
+}
+
+.discovery-layout__navigation {
+  position: relative;
+  z-index: 1;
+}
+
+.mass-activity-location-results {
+  position: absolute;
+  z-index: 1000;
+  top: 100%;
+  left: 0;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+}
+
+.mass-activity-location-result {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+
+  &:hover,
+  &:focus {
+    background: var(--primary-very-low);
+  }
+}
+
+.mass-activity-location-map-coordinates {
+  margin-bottom: 0;
+}
+
+.mass-activity-location-map-loading {
+  display: inline-block;
+  margin-top: 0.5em;
+}

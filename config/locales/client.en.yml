@@ -1,0 +1,9 @@
+en:
+  js:
+    mass_activity:
+      location_map:
+        instructions: "Enter an address and choose a suggestion, or click the map to select a point."
+        selected: "Selected point: %{lat}, %{lon}"
+        loading: "Looking up the selected point..."
+        no_address: "No address was found for this point. Try another location."
+        error: "The location could not be looked up. Please try again."
