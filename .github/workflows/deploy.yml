@@ -93,8 +93,7 @@ jobs:
                   cmd:
                     - git clone https://github.com/discourse/docker_manager.git
                     - git clone https://github.com/merefield/discourse-locations.git
-                    - git clone https://github.com/fullymanual-shed/MassActivity01.git massactivity01
-                    - git -C mass-activity-01 checkout ${{ github.sha }}
+                    - git clone https://github.com/fullymanual-shed/MassActivity01.git mass-activity-01
 
           run:
             - exec: echo "Beginning of custom commands"
