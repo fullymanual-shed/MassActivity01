@@ -332,6 +332,7 @@ export default class AddLocationMapModal extends Component {
   <template>
     <DModal
       class="add-location add-location-modal"
+      @bodyClass="mass-activity-location-modal-body"
       @closeModal={{@closeModal}}
       @flash={{this.flash}}
       @title={{this.title}}
@@ -375,53 +376,31 @@ export default class AddLocationMapModal extends Component {
             </ul>
           {{/if}}
         </div>
-        <p>{{i18n "mass_activity.location_map.instructions"}}</p>
         <div
           class="mass-activity-location-map"
-          style="width: 100%; height: min(45vh, 400px); min-height: 260px; position: relative;"
+          style="width: 100%; position: relative;"
           {{didInsert this.setupMap}}
         ></div>
-        {{#if this.selectedCoordinates}}
-          <p class="mass-activity-location-map-coordinates">
-            {{i18n
-              "mass_activity.location_map.selected"
-              lat=this.selectedCoordinates.lat
-              lon=this.selectedCoordinates.lon
-            }}
-          </p>
-        {{/if}}
         {{#if this.isReverseGeocoding}}
           <span class="mass-activity-location-map-loading" role="status">
             {{i18n "mass_activity.location_map.loading"}}
           </span>
         {{/if}}
-      </div>
-      <hr />
-      <div class="control-group">
-        <label class="control-label">{{i18n "location.name.title"}}</label>
-        <div class="controls">
-          <Input
-            class="input-xxlarge input-location location-name"
-            @type="text"
-            @value={{this.name}}
+        <div class="mass-activity-location-actions">
+          <DButton
+            class="btn-primary"
+            id="save-location"
+            @action={{this.submit}}
+            @disabled={{this.submitDisabled}}
+            @label="location.done"
+          />
+          <DButton
+            class="clear"
+            id="clear-location"
+            @action={{this.clear}}
+            @label="location.clear"
           />
         </div>
-        <div class="instructions">{{i18n "location.name.desc"}}</div>
-      </div>
-      <div class="modal-footer">
-        <DButton
-          class="btn-primary"
-          id="save-location"
-          @action={{this.submit}}
-          @disabled={{this.submitDisabled}}
-          @label="location.done"
-        />
-        <DButton
-          class="clear"
-          id="clear-location"
-          @action={{this.clear}}
-          @label="location.clear"
-        />
       </div>
     </DModal>
   </template>

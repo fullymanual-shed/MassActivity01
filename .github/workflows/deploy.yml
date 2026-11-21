@@ -149,6 +149,7 @@ jobs:
               -p 443:443 \
               -v /var/discourse/shared/standalone:/shared \
               -v /var/discourse/shared/standalone/log/var-log:/var/log \
+              -v /var/discourse/shared/standalone/ssl/https-server.conf:/etc/nginx/conf.d/https-server.conf:ro \
               "$OLD_IMAGE_ID" || {
                 echo "CRITICAL: rollback failed!"
                 exit 1
@@ -173,6 +174,7 @@ jobs:
             -p 443:443 \
             -v /var/discourse/shared/standalone:/shared \
             -v /var/discourse/shared/standalone/log/var-log:/var/log \
+            -v /var/discourse/shared/standalone/ssl/https-server.conf:/etc/nginx/conf.d/https-server.conf:ro \
             "$IMAGE"
 
           # Wait up to 120 seconds for the container to start.
@@ -204,6 +206,24 @@ jobs:
           done
 
           test "$ready" = "true"
+
+          https_ready=false
+
+          for i in $(seq 1 30); do
+            code=$(curl -k -sS -o /dev/null -w '%{http_code}' \
+              --max-time 5 \
+              --resolve massactivity.site:443:127.0.0.1 \
+              https://massactivity.site/ || true)
+
+            if [[ "$code" =~ ^[23][0-9][0-9]$ ]]; then
+              https_ready=true
+              break
+            fi
+
+            sleep 2
+          done
+
+          test "$https_ready" = "true"
 
           trap - ERR
 

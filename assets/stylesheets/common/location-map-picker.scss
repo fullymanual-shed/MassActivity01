@@ -1,6 +1,14 @@
 .mass-activity-location-map-section {
   margin-top: 1em;
 
+  .mass-activity-location-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    gap: 0.5em;
+    margin-top: 1em;
+  }
+
   .mass-activity-location-search {
     position: relative;
     width: 100%;
@@ -14,14 +22,37 @@
   }
 
   .mass-activity-location-map {
-    height: min(45vh, 400px);
-    min-height: 260px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
     position: relative;
 
     .leaflet-container {
       width: 100%;
       height: 100%;
     }
+  }
+}
+
+.d-modal.add-location-modal {
+  .d-modal__container {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .mass-activity-location-modal-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mass-activity-location-map-section {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
   }
 }
 
@@ -61,10 +92,6 @@
   &:focus {
     background: var(--primary-very-low);
   }
-}
-
-.mass-activity-location-map-coordinates {
-  margin-bottom: 0;
 }
 
 .mass-activity-location-map-loading {

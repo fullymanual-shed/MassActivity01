@@ -32,13 +32,38 @@ acceptance("MassActivity01 - Location picker", function (needs) {
 
     assert.dom(".add-location-modal").isVisible();
     assert.dom(".mass-activity-location-search input").exists();
+    assert.dom(".location-name").doesNotExist();
+    assert.dom(".mass-activity-location-header").doesNotIncludeText("Name");
     assert.dom(".location-form").doesNotExist();
+    assert.dom(".mass-activity-location-map-coordinates").doesNotExist();
+    assert.dom(".mass-activity-location-map-section p").doesNotExist();
     assert.dom(".mass-activity-location-map .leaflet-container").exists();
+    const pickerSection = document.querySelector(
+      ".mass-activity-location-map-section"
+    );
+    const sectionChildren = [...pickerSection.children];
+    const actionsIndex = sectionChildren.findIndex((child) =>
+      child.classList.contains("mass-activity-location-actions")
+    );
+    const mapIndex = sectionChildren.findIndex((child) =>
+      child.classList.contains("mass-activity-location-map")
+    );
+    assert.true(mapIndex < actionsIndex, "the Done button appears below the map");
+    assert.dom(".mass-activity-location-actions #save-location").exists();
+    assert.dom(".mass-activity-location-actions #clear-location").exists();
     assert.true(
       document
         .querySelector(".mass-activity-location-map")
         .getBoundingClientRect().height > 0,
       "the Leaflet map container has a visible height"
+    );
+    assert.true(
+      Math.abs(
+        document
+          .querySelector(".add-location-modal .d-modal__container")
+          .getBoundingClientRect().height - window.innerHeight
+      ) < 2,
+      "the modal fills the screen height"
     );
     assert.dom("button.add-location-btn").exists();
 
@@ -53,7 +78,7 @@ acceptance("MassActivity01 - Location picker", function (needs) {
     );
     await click(".mass-activity-location-results button:first-child");
 
-    assert.dom(".mass-activity-location-map-coordinates").exists();
+    assert.dom(".mass-activity-location-map-coordinates").doesNotExist();
     assert.dom(".mass-activity-location-map .leaflet-interactive").exists();
 
     await click("#save-location");
